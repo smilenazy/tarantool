@@ -35,9 +35,21 @@ if(POLICY CMP0037)
     endif()
 endif(POLICY CMP0037)
 
-execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink
-        ${PROJECT_SOURCE_DIR}/third_party/luajit/test
-        ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap)
+if (MY_LUAJIT STREQUAL "LUAVELA")
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${PROJECT_SOURCE_DIR}/third_party/luavela/test
+            ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap
+            COMMENT Create a symlink for luavela test dir to fix out-of-source tests)
+else()
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${PROJECT_SOURCE_DIR}/third_party/luajit/test
+            ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap
+            COMMENT Create a symlink for luajit test dir to fix out-of-source tests)
+endif()
+add_custom_target(symlink_luajit_tests ALL
+   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/luajit-tap)
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/small
     COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -79,3 +91,5 @@ endif()
 
 # Disable connector_c for 1.6
 #add_subdirectory(connector_c)
+
+# vim: et sw=4 ts=4 sts=4:

@@ -394,7 +394,13 @@ if (TARGET_OS_DARWIN)
 endif()
 option(LUAJIT_ENABLE_GC64 "Use 64-bit GC objects by default."
        ${LUAJIT_ENABLE_GC64_DEFAULT})
-include(luajit)
+set(MY_LUAJIT ${MY_LUAJIT})
+if (MY_LUAJIT STREQUAL "LUAVELA")
+    include(BuildLibUJIT)
+    ujit_build()
+else()
+    include(luajit)
+endif()
 
 #
 # LibEV
@@ -588,3 +594,5 @@ foreach(option IN LISTS options)
 endforeach(option)
 list_optional_packages()
 message (STATUS "")
+
+# vim: et sw=4 ts=4 sts=4:

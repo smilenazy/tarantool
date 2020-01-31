@@ -34,7 +34,7 @@ macro(ujit_build)
         BINARY_DIR ${LIBUJIT_BINARY_DIR}
         INSTALL_DIR ${LIBUJIT_INSTALL_DIR}
 
-        CONFIGURE_COMMAND cd <SOURCE_DIR> && cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+        CONFIGURE_COMMAND cd <SOURCE_DIR> && cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> -DCMAKE_C_FLAGS="-ggdb"
         BUILD_COMMAND  cd <SOURCE_DIR> && $(MAKE) # && ${GIT} apply -R ${LIBUJIT_PATCH}
         INSTALL_COMMAND cd <SOURCE_DIR> && $(MAKE) install
     )
@@ -42,7 +42,6 @@ macro(ujit_build)
     add_library(libluajit STATIC IMPORTED GLOBAL)
     set_target_properties(libluajit PROPERTIES IMPORTED_LOCATION
         ${LIBUJIT_INSTALL_DIR}/lib/libujit.a)
-    set_target_properties(libluajit PROPERTIES COMPILE_FLAGS "-ggdb -g -O0")
     add_dependencies(libluajit bundled-libujit-project)
     add_dependencies(build_bundled_libs libluajit)
 

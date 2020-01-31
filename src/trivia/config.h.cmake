@@ -241,6 +241,11 @@
 /** Shared library suffix - ".so" on Linux, ".dylib" on Mac */
 #define MODULE_LIBSUFFIX "@MODULE_LIBSUFFIX@"
 
+/**
+ * Defined type of LUA interpreter.
+ */
+#cmakedefine ENABLE_LUAVELA 1
+
 /** \endcond public */
 
 #define DEFAULT_CFG_FILENAME "tarantool.cfg"

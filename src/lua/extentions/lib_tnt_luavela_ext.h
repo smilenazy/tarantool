@@ -65,8 +65,6 @@ LUA_API uint32_t  lua_hashstring(lua_State *L, int idx);
  * Calculate a hash for a specified string. Hash is the same as
  * for luajit string objects (see lj_str_new()).
  */
-LUA_API uint32_t (lua_hash) (const char *str, uint32_t len);
-
 #undef LUA_TNTEXT_API
 
 static LJ_AINLINE void *

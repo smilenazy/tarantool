@@ -61,6 +61,7 @@
 #include "lua/swim.h"
 #include "lua/decimal.h"
 #include "digest.h"
+#include "box/tuple_dictionary.h"
 #include <small/ibuf.h>
 
 #include <ctype.h>
@@ -102,15 +103,19 @@ extern char strict_lua[],
 	error_lua[],
 	argparse_lua[],
 	iconv_lua[],
+#ifndef ENABLE_LUAVELA
 	/* jit.* library */
-	// vmdef_lua[],
-	// bc_lua[],
-	// bcsave_lua[],
-	// dis_x86_lua[],
-	// dis_x64_lua[],
-	// dump_lua[],
+	vmdef_lua[],
+	bc_lua[],
+	bcsave_lua[],
+	dis_x86_lua[],
+	dis_x64_lua[],
+	dump_lua[],
+	v_lua[],
+	p_lua[], /* LuaJIT 2.1 profiler */
+	zone_lua[], /* LuaJIT 2.1 profiler */
+#endif /* ENABLE_LUAVELA */
 	csv_lua[],
-	// v_lua[],
 	clock_lua[],
 	title_lua[],
 	env_lua[],
@@ -119,8 +124,6 @@ extern char strict_lua[],
 	trigger_lua[],
 	string_lua[],
 	swim_lua[];
-	// p_lua[], /* LuaJIT 2.1 profiler */
-	// zone_lua[] /* LuaJIT 2.1 profiler */;
 
 static const char *lua_modules[] = {
 	/* Make it first to affect load of all other modules */
@@ -155,17 +158,19 @@ static const char *lua_modules[] = {
 	"http.client", httpc_lua,
 	"iconv", iconv_lua,
 	"swim", swim_lua,
+#ifndef ENABLE_LUAVELA
 	/* jit.* library */
-	// "jit.vmdef", vmdef_lua,
-	// "jit.bc", bc_lua,
-	// "jit.bcsave", bcsave_lua,
-	// "jit.dis_x86", dis_x86_lua,
-	// "jit.dis_x64", dis_x64_lua,
-	// "jit.dump", dump_lua,
-	// "jit.v", v_lua,
+	"jit.vmdef", vmdef_lua,
+	"jit.bc", bc_lua,
+	"jit.bcsave", bcsave_lua,
+	"jit.dis_x86", dis_x86_lua,
+	"jit.dis_x64", dis_x64_lua,
+	"jit.dump", dump_lua,
+	"jit.v", v_lua,
 	/* Profiler */
-	// "jit.p", p_lua,
-	// "jit.zone", zone_lua,
+	"jit.p", p_lua,
+	"jit.zone", zone_lua,
+#endif /* ENABLE_LUAVELA */
 	NULL
 };
 
@@ -522,6 +527,9 @@ tarantool_lua_init(const char *tarantool_bin, int argc, char **argv)
 	/* clear possible left-overs of init */
 	lua_settop(L, 0);
 	tarantool_L = L;
+#ifdef ENABLE_LUAVELA
+	field_name_hash = G(tarantool_L)->hashf;
+#endif /* ENABLE_LUAVELA */
 }
 
 char *history = NULL;

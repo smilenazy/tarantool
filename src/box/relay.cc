@@ -341,10 +341,8 @@ relay_final_join_f(va_list ap)
 
 	/* Send all WALs until stop_vclock */
 	assert(relay->stream.write != NULL);
-	if (recover_remaining_wals(relay->r, &relay->stream,
-				   &relay->stop_vclock, true) != 0) {
-		diag_raise();
-	}
+	recover_remaining_wals_xc(relay->r, &relay->stream,
+				  &relay->stop_vclock, true);
 	assert(vclock_compare(&relay->r->vclock, &relay->stop_vclock) == 0);
 	return 0;
 }
@@ -363,9 +361,7 @@ relay_final_join(int fd, uint64_t sync, struct vclock *start_vclock,
 		relay_delete(relay);
 	});
 
-	relay->r = recovery_new(cfg_gets("wal_dir"), false, start_vclock);
-	if (relay->r == NULL)
-		diag_raise();
+	relay->r = recovery_new_xc(cfg_gets("wal_dir"), false, start_vclock);
 
 	vclock_copy(&relay->stop_vclock, stop_vclock);
 
@@ -504,10 +500,7 @@ relay_process_wal_event(struct wal_watcher *watcher, unsigned events)
 	}
 	try {
 		bool scan_dir = (events & WAL_EVENT_ROTATE) ? true : false;
-		if (recover_remaining_wals(relay->r, &relay->stream, NULL,
-					   scan_dir) != 0) {
-			diag_raise();
-		}
+		recover_remaining_wals_xc(relay->r, &relay->stream, NULL, scan_dir);
 	} catch (Exception *e) {
 		relay_set_error(relay, e);
 		fiber_cancel(fiber());
@@ -719,9 +712,7 @@ relay_subscribe(struct replica *replica, int fd, uint64_t sync,
 	});
 
 	vclock_copy(&relay->local_vclock_at_subscribe, &replicaset.vclock);
-	relay->r = recovery_new(cfg_gets("wal_dir"), false, replica_clock);
-	if (relay->r == NULL)
-		diag_raise();
+	relay->r = recovery_new_xc(cfg_gets("wal_dir"), false, replica_clock);
 
 	vclock_copy(&relay->tx.vclock, replica_clock);
 	relay->version_id = replica_version_id;

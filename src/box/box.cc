@@ -2221,11 +2221,9 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	wal_stream_create(&wal_stream);
 
 	struct recovery *recovery;
-	recovery = recovery_new(cfg_gets("wal_dir"),
-				cfg_geti("force_recovery"),
-				checkpoint_vclock);
-	if (recovery == NULL)
-		diag_raise();
+	recovery = recovery_new_xc(cfg_gets("wal_dir"),
+				   cfg_geti("force_recovery"),
+				   checkpoint_vclock);
 
 	/*
 	 * Make sure we report the actual recovery position
@@ -2243,8 +2241,7 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	 * so we must reflect this in replicaset vclock to
 	 * not attempt to apply these rows twice.
 	 */
-	if (recovery_scan(recovery, &replicaset.vclock, &gc.vclock) != 0)
-		diag_raise();
+	recovery_scan_xc(recovery, &replicaset.vclock, &gc.vclock);
 	say_info("instance vclock %s", vclock_to_string(&replicaset.vclock));
 
 	if (wal_dir_lock >= 0) {
@@ -2285,8 +2282,7 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	memtx_engine_recover_snapshot_xc(memtx, checkpoint_vclock);
 
 	engine_begin_final_recovery_xc();
-	if (recover_remaining_wals(recovery, &wal_stream.base, NULL, false) != 0)
-		diag_raise();
+	recover_remaining_wals_xc(recovery, &wal_stream.base, NULL, false);
 	engine_end_recovery_xc();
 	/*
 	 * Leave hot standby mode, if any, only after
@@ -2295,22 +2291,19 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	if (wal_dir_lock < 0) {
 		title("hot_standby");
 		say_info("Entering hot standby mode");
-		if (recovery_follow_local(recovery, &wal_stream.base, "hot_standby",
-					  cfg_getd("wal_dir_rescan_delay")) != 0)
-			diag_raise();
+		recovery_follow_local_xc(recovery, &wal_stream.base, "hot_standby",
+					 cfg_getd("wal_dir_rescan_delay"));
 		while (true) {
 			if (path_lock(cfg_gets("wal_dir"), &wal_dir_lock)) {
-				recovery_stop_local(recovery);
+				recovery_stop_local_xc(recovery);
 				diag_raise();
 			}
 			if (wal_dir_lock >= 0)
 				break;
 			fiber_sleep(0.1);
 		}
-		if (recovery_stop_local(recovery))
-		    diag_raise();
-		if (recover_remaining_wals(recovery, &wal_stream.base, NULL, true) != 0)
-			diag_raise();
+		recovery_stop_local_xc(recovery);
+		recover_remaining_wals_xc(recovery, &wal_stream.base, NULL, true);
 		/*
 		 * Advance replica set vclock to reflect records
 		 * applied in hot standby mode.
@@ -2320,8 +2313,7 @@ local_recovery(const struct tt_uuid *instance_uuid,
 		box_sync_replication(false);
 	}
 
-	if (recovery_finalize(recovery) != 0)
-		diag_raise();
+	recovery_finalize_xc(recovery);
 
 	/*
 	 * We must enable WAL before finalizing engine recovery,

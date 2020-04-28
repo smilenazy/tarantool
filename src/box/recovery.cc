@@ -581,7 +581,7 @@ recovery_follow_local(struct recovery *r, struct xstream *stream,
 	return 0;
 }
 
-void
+int
 recovery_stop_local(struct recovery *r)
 {
 	if (r->watcher) {
@@ -589,8 +589,9 @@ recovery_stop_local(struct recovery *r)
 		r->watcher = NULL;
 		fiber_cancel(f);
 		if (fiber_join(f) != 0)
-			diag_raise();
+			return -1;
 	}
+	return 0;
 }
 
 /* }}} */

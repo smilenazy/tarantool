@@ -102,6 +102,59 @@ recover_remaining_wals(struct recovery *r, struct xstream *stream,
 
 #if defined(__cplusplus)
 } /* extern "C" */
+
+#include "exception.h"
+
+static inline struct recovery *
+recovery_new_xc(const char *wal_dirname, bool force_recovery,
+		const struct vclock *vclock)
+{
+	struct recovery *r;
+
+	r = recovery_new(wal_dirname, force_recovery, vclock);
+	if (r == NULL)
+		diag_raise();
+	return r;
+}
+
+static inline void
+recovery_scan_xc(struct recovery *r, struct vclock *end_vclock,
+		 struct vclock *gc_vclock)
+{
+	if (recovery_scan(r, end_vclock, gc_vclock))
+		diag_raise();
+}
+
+static inline void
+recover_remaining_wals_xc(struct recovery *r, struct xstream *stream,
+			  const struct vclock *stop_vclock, bool scan_dir)
+{
+	if (recover_remaining_wals(r, stream, stop_vclock, scan_dir))
+		diag_raise();
+}
+
+static inline void
+recovery_follow_local_xc(struct recovery *r, struct xstream *stream,
+			 const char *name, ev_tstamp wal_dir_rescan_delay)
+{
+	if (recovery_follow_local(r, stream, name, wal_dir_rescan_delay))
+		diag_raise();
+}
+
+static inline void
+recovery_stop_local_xc(struct recovery *r)
+{
+	if (recovery_stop_local(r))
+		diag_raise();
+}
+
+static inline void
+recovery_finalize_xc(struct recovery *r)
+{
+	if (recovery_finalize(r))
+		diag_raise();
+}
+
 #endif /* defined(__cplusplus) */
 
 #endif /* TARANTOOL_RECOVERY_H_INCLUDED */

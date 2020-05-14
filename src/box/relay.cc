@@ -177,7 +177,7 @@ relay_send(struct relay *relay, struct xrow_header *packet);
 static void
 relay_send_initial_join_row(struct xstream *stream, struct xrow_header *row);
 static void
-relay_send_row(struct xstream *stream, struct xrow_header *row);
+relay_collect_tx(struct xstream *stream, struct xrow_header *row);
 
 struct relay *
 relay_new(struct replica *replica)
@@ -355,7 +355,7 @@ relay_final_join(int fd, uint64_t sync, struct vclock *start_vclock,
 	if (relay == NULL)
 		diag_raise();
 
-	relay_start(relay, fd, sync, relay_send_row);
+	relay_start(relay, fd, sync, relay_collect_tx);
 	auto relay_guard = make_scoped_guard([=] {
 		relay_stop(relay);
 		relay_delete(relay);
@@ -705,7 +705,7 @@ relay_subscribe(struct replica *replica, int fd, uint64_t sync,
 			diag_raise();
 	}
 
-	relay_start(relay, fd, sync, relay_send_row);
+	relay_start(relay, fd, sync, relay_collect_tx);
 	auto relay_guard = make_scoped_guard([=] {
 		relay_stop(relay);
 		replica_on_relay_stop(replica);
@@ -754,12 +754,43 @@ relay_send_initial_join_row(struct xstream *stream, struct xrow_header *row)
 		relay_send(relay, row);
 }
 
-/** Send a single row to the client. */
+struct relay_tx_row {
+	struct rlist link;
+	struct xrow_header row;
+};
+
 static void
-relay_send_row(struct xstream *stream, struct xrow_header *packet)
+relay_send_tx(struct relay *relay, struct rlist *head)
+{
+	ERROR_INJECT_YIELD(ERRINJ_RELAY_SEND_DELAY);
+
+	struct relay_tx_row *tx_row;
+	rlist_foreach_entry(tx_row, head, link) {
+		tx_row->row.sync = relay->sync;
+		coio_write_xrow(&relay->io, &tx_row->row);
+	}
+	relay->last_row_time = ev_monotonic_now(loop());
+
+	struct errinj *inj = errinj(ERRINJ_RELAY_TIMEOUT, ERRINJ_DOUBLE);
+	if (inj != NULL && inj->dparam > 0)
+		fiber_sleep(inj->dparam);
+}
+
+/**
+ * Collect all the rows belonging to a single transaction and
+ * send them at once.
+ */
+static void
+relay_collect_tx(struct xstream *stream, struct xrow_header *packet)
 {
 	struct relay *relay = container_of(stream, struct relay, stream);
+	struct relay_tx_row *tx_row;
+	struct errinj *inj;
+
+	static RLIST_HEAD(tx_rows_list);
+
 	assert(iproto_type_is_dml(packet->type));
+
 	if (packet->group_id == GROUP_LOCAL) {
 		/*
 		 * We do not relay replica-local rows to other
@@ -770,15 +801,29 @@ relay_send_row(struct xstream *stream, struct xrow_header *packet)
 		 * order to correctly promote the vclock on the
 		 * replica.
 		 */
-		if (packet->replica_id == REPLICA_ID_NIL)
-			return;
+		if (packet->replica_id == REPLICA_ID_NIL) {
+			/*
+			 * Make sure is_commit flag from the
+			 * local row makes it to the replica,
+			 * in case the transaction is not fully
+			 * local.
+			 */
+			if (!packet->is_commit || rlist_empty(&tx_rows_list))
+				return;
+
+			rlist_last_entry(&tx_rows_list, struct relay_tx_row,
+					 link)->row.is_commit = true;
+			goto write;
+		}
 		packet->type = IPROTO_NOP;
 		packet->group_id = GROUP_DEFAULT;
 		packet->bodycnt = 0;
 	}
+
 	/* Check if the rows from the instance are filtered. */
-	if ((1 << packet->replica_id & relay->id_filter) != 0)
+	if (((1u << packet->replica_id) & relay->id_filter) != 0)
 		return;
+
 	/*
 	 * We're feeding a WAL, thus responding to FINAL JOIN or SUBSCRIBE
 	 * request. If this is FINAL JOIN (i.e. relay->replica is NULL),
@@ -791,17 +836,43 @@ relay_send_row(struct xstream *stream, struct xrow_header *packet)
 	 * it). In the latter case packet's LSN is less than or equal to
 	 * local master's LSN at the moment it received 'SUBSCRIBE' request.
 	 */
-	if (relay->replica == NULL ||
-	    packet->replica_id != relay->replica->id ||
-	    packet->lsn <= vclock_get(&relay->local_vclock_at_subscribe,
-				      packet->replica_id)) {
-		struct errinj *inj = errinj(ERRINJ_RELAY_BREAK_LSN,
-					    ERRINJ_INT);
-		if (inj != NULL && packet->lsn == inj->iparam) {
-			packet->lsn = inj->iparam - 1;
-			say_warn("injected broken lsn: %lld",
-				 (long long) packet->lsn);
-		}
+	if (relay->replica != NULL && packet->replica_id == relay->replica->id &&
+	    packet->lsn > vclock_get(&relay->local_vclock_at_subscribe,
+				     packet->replica_id)) {
+		return;
+	}
+
+	inj = errinj(ERRINJ_RELAY_BREAK_LSN, ERRINJ_INT);
+	if (inj != NULL && packet->lsn == inj->iparam) {
+		packet->lsn = inj->iparam - 1;
+		say_warn("injected broken lsn: %lld",
+			 (long long) packet->lsn);
+	}
+
+	/* A short path for single-statement transactions. */
+	if (packet->is_commit && rlist_empty(&tx_rows_list)) {
 		relay_send(relay, packet);
+		return;
+	}
+
+	tx_row = (struct relay_tx_row *)region_alloc(&fiber()->gc,
+						     sizeof(*tx_row));
+	if (tx_row == NULL) {
+		tnt_raise(OutOfMemory, sizeof(*tx_row), "region",
+			  "struct relay_tx_row");
+	}
+	tx_row->row = *packet;
+	rlist_add_tail_entry(&tx_rows_list, tx_row, link);
+
+	if (packet->is_commit) {
+write:
+		relay_send_tx(relay, &tx_rows_list);
+		tx_rows_list = RLIST_HEAD_INITIALIZER(tx_rows_list);
+
+		/*
+		 * Free all the relay_tx_rows allocated on the
+		 * fiber region.
+		 */
+		fiber_gc();
 	}
 }

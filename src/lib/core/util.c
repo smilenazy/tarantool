@@ -387,3 +387,20 @@ double_compare_uint64(double lhs, uint64_t rhs, int k)
 	 */
 	return -k;
 }
+
+int
+current_connections(int diff)
+{
+	static int value = 0;
+	value += diff;
+	return value;
+}
+
+int
+descriptors_rlimit()
+{
+	struct rlimit nofile;
+	if (getrlimit(RLIMIT_NOFILE, &nofile) != 0)
+		nofile.rlim_cur = 1024;
+	return nofile.rlim_cur;
+}

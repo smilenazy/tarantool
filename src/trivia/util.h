@@ -512,6 +512,19 @@ json_escape(char *buf, int size, const char *data);
 int
 double_compare_uint64(double lhs, uint64_t rhs, int k);
 
+/**
+ * Update current connections amount by @a diff and return new
+ * value.
+ */
+int
+current_connections(int diff);
+
+/**
+ * Return descriptors rlimit.
+ */
+int
+descriptors_rlimit();
+
 #if !defined(__cplusplus) && !defined(static_assert)
 # define static_assert _Static_assert
 #endif

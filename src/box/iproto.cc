@@ -670,6 +670,7 @@ iproto_connection_close(struct iproto_connection *con)
 		/* Make evio_has_fd() happy */
 		con->input.fd = con->output.fd = -1;
 		close(fd);
+		current_connections(-1);
 		/*
 		 * Discard unparsed data, to recycle the
 		 * connection in net_send_msg() as soon as all
@@ -2041,6 +2042,7 @@ iproto_on_accept(struct evio_service * /* service */, int fd,
 	msg->p_ibuf = con->p_ibuf;
 	msg->wpos = con->wpos;
 	msg->close_connection = false;
+	current_connections(1);
 	cpipe_push(&tx_pipe, &msg->base);
 	return 0;
 }

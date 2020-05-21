@@ -958,6 +958,7 @@ wal_assign_lsn(struct vclock *vclock_diff, struct vclock *base,
 	int64_t tsn = 0;
 	struct xrow_header **start = row;
 	struct xrow_header **first_glob_row = row;
+	struct xrow_header **last_glob_row = end - 1;
 	/** Assign LSN to all local rows. */
 	for ( ; row < end; row++) {
 		if ((*row)->replica_id == 0) {
@@ -969,8 +970,10 @@ wal_assign_lsn(struct vclock *vclock_diff, struct vclock *base,
 			 * only capable of writing to local and
 			 * temporary spaces.
 			 */
-			if ((*row)->group_id != GROUP_LOCAL)
+			if ((*row)->group_id != GROUP_LOCAL) {
 				(*row)->replica_id = instance_id;
+				last_glob_row = row;
+			}
 
 			(*row)->lsn = vclock_inc(vclock_diff, (*row)->replica_id) +
 				      vclock_get(base, (*row)->replica_id);
@@ -986,7 +989,7 @@ wal_assign_lsn(struct vclock *vclock_diff, struct vclock *base,
 				first_glob_row = row;
 			}
 			(*row)->tsn = tsn == 0 ? (*start)->lsn : tsn;
-			(*row)->is_commit = row == end - 1;
+			(*row)->is_commit = false;
 		} else {
 			int64_t diff = (*row)->lsn - vclock_get(base, (*row)->replica_id);
 			if (diff <= vclock_get(vclock_diff,
@@ -1012,6 +1015,21 @@ wal_assign_lsn(struct vclock *vclock_diff, struct vclock *base,
 	 */
 	for (row = start; row < first_glob_row; row++)
 		(*row)->tsn = tsn;
+
+	/*
+	 * If a mixed transaction ends on a local row, float up
+	 * the last global row, so that the upper tx boundary is
+	 * delivered to the replica.
+	 */
+	if (last_glob_row < end - 1) {
+		struct xrow_header *tmp = *last_glob_row;
+		memmove(last_glob_row, last_glob_row + 1,
+			(end - 1 - last_glob_row) *
+			sizeof(struct xrow_header *));
+		*(end - 1) = tmp;
+	}
+
+	(*(end - 1))->is_commit = true;
 }
 
 static void

@@ -16,7 +16,7 @@ exclude_files = {
     "test/engine/**/*.test.lua",
     "test/engine_long/**/*.test.lua",
     "test/long_run-py/**/*.lua",
-    "test/replication/*.lua",
+    "test/replication/**/*.test.lua",
     "test/sql/*.lua",
     "test/swim/*.lua",
     "test/var/**/*.lua",
@@ -71,3 +71,11 @@ files["test/box-tap/extended_error.test.lua"] = {
 }
 files["test/engine/conflict.lua"] = {globals = {"test_conflict"}}
 files["test/engine_long/suite.lua"] = {globals = {"delete_replace_update", "delete_insert"}}
+files["test/replication/replica_quorum.lua"] = {globals = {"INSTANCE_URI", "nonexistent_uri"}}
+files["test/replication/replica_on_schema_init.lua"] = {globals = {"trig_local", "trig_engine"}}
+files["test/replication/lua/fast_replica.lua"] = {
+	globals = {"join", "start_all", "stop_all", "wait_all",
+	"drop_all", "drop_all", "vclock_diff", "unregister",
+	"delete", "start", "stop", "call_all", "drop", "wait"},
+	ignore = {"212", "213"}
+}

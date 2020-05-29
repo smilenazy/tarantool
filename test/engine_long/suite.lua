@@ -39,7 +39,6 @@ function delete_replace_update(engine_name, iterations)
         random_number = math.random(1,6)
 
         string_value_3 = string_function()
---      print('<'..counter..'> [' ..  random_number .. '] value_2: ' .. string_value_2 .. ' value_3: ' .. string_value_3)
         if random_number == 1 then
             box.space.tester:delete{string_value_2}
         end

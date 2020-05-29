@@ -30,3 +30,5 @@ files["src/box/lua/console.lua"] = {globals = {"help"}, ignore = {"212"}}
 files["src/box/lua/net_box.lua"] = {ignore = {"431", "432"}}
 files["src/box/lua/schema.lua"] = {globals = {"tonumber64"}, ignore = {"431", "432"}}
 files["test/app/lua/fiber.lua"] = {globals = {"box_fiber_run_test"}}
+files["test/app-tap/lua/require_mod.lua"] = {globals = {"exports"}}
+files["test/app-tap/string.test.lua"] = {globals = {"utf8"}}

@@ -60,3 +60,12 @@ files["test/box/lua/bitset.lua"] = {
 files["test/box/lua/fifo.lua"] = {globals = {"fifomax", "find_or_create_fifo", "fifo_push", "fifo_top"}}
 files["test/box/lua/identifier.lua"] = {globals = {"run_test"}}
 files["test/box/lua/require_mod.lua"] = {globals = {"exports"}}
+files["test/box-tap/session.test.lua"] = {
+	globals = {"active_connections", "session", "space", "f1", "f2"},
+	ignore = {"211"}
+}
+files["test/box-tap/extended_error.test.lua"] = {
+	globals = {"error_new", "error_throw", "error_new_stacked", "error_throw_stacked",
+	"error_access_denied", "error_throw_access_denied", "forbidden_function"},
+	ignore = {"211"}
+}

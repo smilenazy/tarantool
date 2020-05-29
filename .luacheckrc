@@ -18,7 +18,7 @@ exclude_files = {
     "test/long_run-py/**/*.lua",
     "test/replication/**/*.test.lua",
     "test/sql/**/*.test.lua",
-    "test/swim/*.lua",
+    "test/swim/**/*.test.lua",
     "test/var/**/*.lua",
     "test/vinyl/*.lua",
     "test/wal_off/*.lua",
@@ -82,3 +82,4 @@ files["test/replication/lua/fast_replica.lua"] = {
 files["test/sql-tap/*.lua"] = {ignore = {"111", "113", "211", "611", "612", "613", "614", "621", "631"}}
 files["test/sql-tap/lua/sqltester.lua"] = {globals = {"table_match_regex_p"}}
 files["test/sql-tap/e_expr.test.lua"] = {ignore = {"512"}}
+files["test/swim/box.lua"] = {globals = {"listen_port", "listen_uri", "uuid", "uri", "swim", "fiber"}}

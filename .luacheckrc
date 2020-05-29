@@ -71,6 +71,7 @@ files["test/box-tap/extended_error.test.lua"] = {
 }
 files["test/engine/conflict.lua"] = {globals = {"test_conflict"}}
 files["test/engine_long/suite.lua"] = {globals = {"delete_replace_update", "delete_insert"}}
+files["test/luajit-tap/or-232-unsink-64-kptr.test.lua"] = {ignore = {"542"}}
 files["test/replication/replica_quorum.lua"] = {globals = {"INSTANCE_URI", "nonexistent_uri"}}
 files["test/replication/replica_on_schema_init.lua"] = {globals = {"trig_local", "trig_engine"}}
 files["test/replication/lua/fast_replica.lua"] = {

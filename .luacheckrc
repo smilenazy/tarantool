@@ -79,3 +79,6 @@ files["test/replication/lua/fast_replica.lua"] = {
 	"delete", "start", "stop", "call_all", "drop", "wait"},
 	ignore = {"212", "213"}
 }
+files["test/sql-tap/*.lua"] = {ignore = {"111", "113", "211", "611", "612", "613", "614", "621", "631"}}
+files["test/sql-tap/lua/sqltester.lua"] = {globals = {"table_match_regex_p"}}
+files["test/sql-tap/e_expr.test.lua"] = {ignore = {"512"}}

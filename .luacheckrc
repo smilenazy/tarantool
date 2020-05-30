@@ -13,7 +13,7 @@ exclude_files = {
     "test/app/**/*.test.lua",
     "test/box/**/*.test.lua",
     "test/box/lua/test_init.lua",
-    "test/engine/*.lua",
+    "test/engine/**/*.test.lua",
     "test/engine_long/*.lua",
     "test/long_run-py/**/*.lua",
     "test/replication/*.lua",
@@ -69,3 +69,4 @@ files["test/box-tap/extended_error.test.lua"] = {
 	"error_access_denied", "error_throw_access_denied", "forbidden_function"},
 	ignore = {"211"}
 }
+files["test/engine/conflict.lua"] = {globals = {"test_conflict"}}

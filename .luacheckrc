@@ -29,3 +29,4 @@ files["src/lua/swim.lua"] = {ignore = {"431"}}
 files["src/box/lua/console.lua"] = {globals = {"help"}, ignore = {"212"}}
 files["src/box/lua/net_box.lua"] = {ignore = {"431", "432"}}
 files["src/box/lua/schema.lua"] = {globals = {"tonumber64"}, ignore = {"431", "432"}}
+files["test/app/lua/fiber.lua"] = {globals = {"box_fiber_run_test"}}

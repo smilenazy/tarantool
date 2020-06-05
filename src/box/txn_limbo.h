@@ -131,7 +131,7 @@ extern struct txn_limbo txn_limbo;
  * The limbo entry is allocated on the transaction's region.
  */
 struct txn_limbo_entry *
-txn_limbo_append(struct txn_limbo *limbo, struct txn *txn);
+txn_limbo_append(struct txn_limbo *limbo, uint32_t id, struct txn *txn);
 
 /** Remove the entry from the limbo, mark as rolled back. */
 void

@@ -43,13 +43,15 @@ txn_limbo_create(struct txn_limbo *limbo)
 }
 
 struct txn_limbo_entry *
-txn_limbo_append(struct txn_limbo *limbo, struct txn *txn)
+txn_limbo_append(struct txn_limbo *limbo, uint32_t id, struct txn *txn)
 {
 	assert(txn_has_flag(txn, TXN_WAIT_ACK));
-	if (limbo->instance_id != instance_id) {
+	if (id == 0)
+		id = instance_id;
+	if (limbo->instance_id != id) {
 		if (limbo->instance_id == REPLICA_ID_NIL ||
 		    rlist_empty(&limbo->queue)) {
-			limbo->instance_id = instance_id;
+			limbo->instance_id = id;
 		} else {
 			diag_set(ClientError, ER_UNCOMMITTED_FOREIGN_SYNC_TXNS,
 				 limbo->instance_id);

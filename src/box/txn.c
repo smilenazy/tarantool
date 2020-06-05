@@ -674,11 +674,17 @@ txn_commit(struct txn *txn)
 	bool is_sync = txn_has_flag(txn, TXN_WAIT_ACK);
 	if (is_sync) {
 		/*
+		 * Remote rows, if any, come before local rows, so
+		 * check for originating instance id here.
+		 */
+		uint32_t origin_id = req->rows[0]->replica_id;
+
+		/*
 		 * Append now. Before even WAL write is done.
 		 * After WAL write nothing should fail, even OOM
 		 * wouldn't be acceptable.
 		 */
-		limbo_entry = txn_limbo_append(&txn_limbo, txn);
+		limbo_entry = txn_limbo_append(&txn_limbo, origin_id, txn);
 		if (limbo_entry == NULL) {
 			txn_rollback(txn);
 			txn_free(txn);

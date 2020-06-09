@@ -36,6 +36,7 @@
 #include <fiber.h>
 #include "xrow.h"
 #include "errinj.h"
+#include "iproto_constants.h"
 
 double too_long_threshold;
 
@@ -81,7 +82,12 @@ txn_add_redo(struct txn *txn, struct txn_stmt *stmt, struct request *request)
 	 */
 	struct space *space = stmt->space;
 	row->group_id = space != NULL ? space_group_id(space) : 0;
-	row->bodycnt = xrow_encode_dml(request, &txn->region, row->body);
+	/*
+	 * IPROTO_CONFIRM entries are supplementary and aren't
+	 * valid dml requests. They're encoded manually.
+	 */
+	if (likely(row->type != IPROTO_CONFIRM))
+		row->bodycnt = xrow_encode_dml(request, &txn->region, row->body);
 	if (row->bodycnt < 0)
 		return -1;
 	stmt->row = row;
@@ -321,8 +327,10 @@ txn_commit_stmt(struct txn *txn, struct request *request)
 	 */
 	struct txn_stmt *stmt = txn_current_stmt(txn);
 
-	/* Create WAL record for the write requests in non-temporary spaces.
-	 * stmt->space can be NULL for IRPOTO_NOP.
+	/*
+	 * Create WAL record for the write requests in
+	 * non-temporary spaces. stmt->space can be NULL for
+	 * IRPOTO_NOP or IPROTO_CONFIRM.
 	 */
 	if (stmt->space == NULL || !space_is_temporary(stmt->space)) {
 		if (txn_add_redo(txn, stmt, request) != 0)
@@ -417,12 +425,12 @@ txn_run_rollback_triggers(struct txn *txn, struct rlist *triggers)
 /**
  * Complete transaction processing.
  */
-static void
+void
 txn_complete(struct txn *txn)
 {
 	/*
 	 * Note, engine can be NULL if transaction contains
-	 * IPROTO_NOP statements only.
+	 * IPROTO_NOP or IPROTO_CONFIRM statements.
 	 */
 	if (txn->signature < 0) {
 		/* Undo the transaction. */
@@ -510,13 +518,6 @@ txn_journal_entry_new(struct txn *txn)
 	struct xrow_header **remote_row = req->rows;
 	struct xrow_header **local_row = req->rows + txn->n_applier_rows;
 	bool is_sync = false;
-	/*
-	 * Only local transactions, originated from the master,
-	 * can enter 'waiting for acks' state. It means, only
-	 * author of the transaction can collect acks. Replicas
-	 * consider it a normal async transaction so far.
-	 */
-	bool is_local = true;
 
 	stailq_foreach_entry(stmt, &txn->stmts, next) {
 		if (stmt->has_triggers) {
@@ -530,17 +531,18 @@ txn_journal_entry_new(struct txn *txn)
 		if (stmt->row == NULL)
 			continue;
 
-		if (stmt->row->replica_id == 0) {
+		if (stmt->row->replica_id == 0)
 			*local_row++ = stmt->row;
-		} else {
+		else
 			*remote_row++ = stmt->row;
-			is_local = false;
-		}
 
 		req->approx_len += xrow_approx_len(stmt->row);
 	}
-	if (is_sync && is_local)
+
+	is_sync = is_sync && !txn_has_flag(txn, TXN_FORCE_ASYNC);
+	if (is_sync) {
 		txn_set_flag(txn, TXN_WAIT_ACK);
+	}
 
 	assert(remote_row == req->rows + txn->n_applier_rows);
 	assert(local_row == remote_row + txn->n_new_rows);
@@ -601,6 +603,19 @@ txn_commit_nop(struct txn *txn)
 	return false;
 }
 
+/*
+ * A trigger called on tx rollback due to a failed WAL write,
+ * when tx is waiting for confirmation.
+ */
+static int
+txn_limbo_on_rollback(struct trigger *trig, void *data)
+{
+	(void) trig;
+	struct txn_limbo_entry *entry = (struct txn_limbo_entry *) data;
+	txn_limbo_abort(&txn_limbo, entry);
+	return 0;
+}
+
 int
 txn_commit_async(struct txn *txn)
 {
@@ -632,16 +647,43 @@ txn_commit_async(struct txn *txn)
 		return -1;
 	}
 
+	bool is_sync = txn_has_flag(txn, TXN_WAIT_ACK);
+	struct txn_limbo_entry *limbo_entry;
+	if (is_sync) {
+		/* See txn_commit(). */
+		uint32_t origin_id = req->rows[0]->replica_id;
+		int64_t lsn = req->rows[txn->n_applier_rows - 1]->lsn;
+		limbo_entry = txn_limbo_append(&txn_limbo, origin_id, txn);
+		if (limbo_entry == NULL) {
+			txn_rollback(txn);
+			txn_free(txn);
+			return -1;
+		}
+		assert(lsn > 0);
+		txn_limbo_assign_lsn(&txn_limbo, limbo_entry, lsn);
+	}
+
 	fiber_set_txn(fiber(), NULL);
 	if (journal_write_async(req) != 0) {
 		fiber_set_txn(fiber(), txn);
 		txn_rollback(txn);
+		if (is_sync)
+			txn_limbo_abort(&txn_limbo, limbo_entry);
 
 		diag_set(ClientError, ER_WAL_IO);
 		diag_log();
 		return -1;
 	}
 
+	/*
+	 * Set a trigger to abort waiting for confirm on WAL write
+	 * failure.
+	 */
+	if (is_sync) {
+		struct trigger trig;
+		trigger_create(&trig, txn_limbo_on_rollback, limbo_entry, NULL);
+		txn_on_rollback(txn, &trig);
+	}
 	return 0;
 }
 

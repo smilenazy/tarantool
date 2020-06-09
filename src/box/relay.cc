@@ -402,10 +402,14 @@ tx_status_update(struct cmsg *msg)
 	vclock_copy(&status->relay->tx.vclock, &status->vclock);
 	/*
 	 * Let pending synchronous transactions know, which of
-	 * them were successfully sent to the replica.
+	 * them were successfully sent to the replica. Acks are
+	 * collected only on the master. Other instances wait for
+	 * master's CONFIRM message instead.
 	 */
-	txn_limbo_ack(&txn_limbo, status->relay->replica->id,
-		     vclock_get(&status->vclock, instance_id));
+	if (txn_limbo.instance_id == instance_id) {
+		txn_limbo_ack(&txn_limbo, status->relay->replica->id,
+			      vclock_get(&status->vclock, instance_id));
+	}
 	static const struct cmsg_hop route[] = {
 		{relay_status_update, NULL}
 	};
@@ -766,7 +770,8 @@ static void
 relay_send_row(struct xstream *stream, struct xrow_header *packet)
 {
 	struct relay *relay = container_of(stream, struct relay, stream);
-	assert(iproto_type_is_dml(packet->type));
+	assert(iproto_type_is_dml(packet->type) ||
+	       packet->type == IPROTO_CONFIRM);
 	if (packet->group_id == GROUP_LOCAL) {
 		/*
 		 * We do not relay replica-local rows to other

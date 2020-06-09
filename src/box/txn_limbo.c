@@ -77,6 +77,7 @@ txn_limbo_remove(struct txn_limbo *limbo, struct txn_limbo_entry *entry)
 	assert(!rlist_empty(&entry->in_queue));
 	assert(rlist_first_entry(&limbo->queue, struct txn_limbo_entry,
 				 in_queue) == entry);
+	(void) limbo;
 	rlist_del_entry(entry, in_queue);
 }
 
@@ -108,7 +109,7 @@ txn_limbo_check_complete(struct txn_limbo *limbo, struct txn_limbo_entry *entry)
 		ack_count += vc.lsn >= lsn;
 	assert(ack_count >= entry->ack_count);
 	entry->ack_count = ack_count;
-	entry->is_commit = ack_count > replication_sync_quorum;
+	entry->is_commit = ack_count >= replication_sync_quorum;
 	return entry->is_commit;
 }
 

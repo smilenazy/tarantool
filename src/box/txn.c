@@ -459,7 +459,7 @@ txn_complete(struct txn *txn)
 		 * back to the fiber, owning the transaction so as
 		 * it could decide what to do next.
 		 */
-		if (txn->fiber != fiber())
+		if (txn->fiber != NULL && txn->fiber != fiber())
 			fiber_wakeup(txn->fiber);
 		return;
 	}
@@ -523,7 +523,8 @@ txn_journal_entry_new(struct txn *txn)
 			txn_init_triggers(txn);
 			rlist_splice(&txn->on_commit, &stmt->on_commit);
 		}
-		is_sync = is_sync || stmt->space->def->opts.is_sync;
+		is_sync = is_sync || (stmt->space != NULL &&
+				     stmt->space->def->opts.is_sync);
 
 		/* A read (e.g. select) request */
 		if (stmt->row == NULL)

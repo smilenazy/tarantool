@@ -481,9 +481,9 @@ box_check_replication_sync_quorum(void)
 {
 	int quorum = cfg_geti("replication_sync_quorum");
 	if (quorum <= 0 || quorum > VCLOCK_MAX) {
-		diag_set(ClientError, ER_CFG, "replication_sync_quorum",
-			 "the value must be greater than and less than "
-			 "maximal number of replicas");
+		tnt_raise(ClientError, ER_CFG, "replication_sync_quorum",
+			  "the value must be greater than zero and less "
+			  "than maximal number of replicas");
 		return -1;
 	}
 	return quorum;
@@ -671,8 +671,7 @@ box_check_config()
 	box_check_replication_connect_timeout();
 	box_check_replication_connect_quorum();
 	box_check_replication_sync_lag();
-	if (box_check_replication_sync_quorum() < 0)
-		diag_raise();
+	box_check_replication_sync_quorum();
 	box_check_replication_sync_timeout();
 	box_check_readahead(cfg_geti("readahead"));
 	box_check_checkpoint_count(cfg_geti("checkpoint_count"));

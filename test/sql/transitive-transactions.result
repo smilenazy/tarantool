@@ -115,7 +115,7 @@ box.space.PARENT:select();
 ---
 - - [1, 1]
 ...
-box.space._session_settings:update('sql_defer_foreign_keys', {{'=', 2, true}})
+box.space._session_settings:update('sql_defer_foreign_key_changes', {{'=', 2, true}})
 box.rollback()
 fk_defer();
 ---
@@ -130,7 +130,7 @@ box.space.PARENT:select();
   - [2, 2]
 ...
 -- Cleanup
-box.space._session_settings:update('sql_defer_foreign_keys', {{'=', 2, false}})
+box.space._session_settings:update('sql_defer_foreign_key_changes', {{'=', 2, false}})
 
 box.execute('DROP TABLE child;');
 ---

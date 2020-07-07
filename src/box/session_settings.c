@@ -44,7 +44,7 @@ struct session_setting session_settings[SESSION_SETTING_COUNT] = {};
 const char *session_setting_strs[SESSION_SETTING_COUNT] = {
 	"error_marshaling_enabled",
 	"sql_default_engine",
-	"sql_defer_foreign_keys",
+	"sql_defer_foreign_key_changes",
 	"sql_full_column_names",
 	"sql_full_metadata",
 	"sql_parser_debug",

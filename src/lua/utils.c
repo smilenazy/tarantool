@@ -626,10 +626,10 @@ luaL_tofield(struct lua_State *L, struct luaL_serializer *cfg,
 			if (ctypeid == CTID_DECIMAL) {
 				field->ext_type = MP_DECIMAL;
 				field->decval = (decimal_t *) cdata;
-			} else if (cd->ctypeid == CTID_UUID) {
+			} else if (ctypeid == CTID_UUID) {
 				field->ext_type = MP_UUID;
 				field->uuidval = (struct tt_uuid *) cdata;
-			} else if (cd->ctypeid == CTID_CONST_STRUCT_ERROR_REF &&
+			} else if (ctypeid == CTID_CONST_STRUCT_ERROR_REF &&
 				   opts != NULL &&
 				   opts->error_marshaling_enabled) {
 				field->ext_type = MP_ERROR;
@@ -1016,6 +1016,12 @@ lua_State *
 luaT_state(void)
 {
 	return tarantool_L;
+}
+
+struct tt_uuid *
+luaL_pushuuid(struct lua_State *L)
+{
+	return luaTNT_pushcdata(L, CTID_UUID);
 }
 
 /* {{{ Helper functions to interact with a Lua iterator from C */

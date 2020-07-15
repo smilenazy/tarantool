@@ -328,8 +328,12 @@ sql_table_delete_from(struct Parse *parse, struct SrcList *tab_list,
 			 * key.
 			 */
 			key_len = 0;
-			sqlVdbeAddOp3(v, OP_MakeRecord, reg_pk, pk_len,
-				      reg_key);
+			struct index *pk = space_index(space, 0);
+			enum field_type *types = is_view ? NULL :
+						 sql_index_type_str(parse->db,
+								    pk->def);
+			sqlVdbeAddOp4(v, OP_MakeRecord, reg_pk, pk_len,
+					  reg_key, (char *)types, P4_DYNAMIC);
 			/* Set flag to save memory allocating one
 			 * by malloc.
 			 */

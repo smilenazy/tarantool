@@ -587,6 +587,206 @@ check_mems_comparability(struct Mem *mems, struct key_def *def, uint32_t len) {
 	return 0;
 }
 
+static int
+mem_prepare_to_uint(struct Mem *mem, int *oc, int eqOnly)
+{
+	if ((mem->flags & MEM_Int) != 0) {
+		if (eqOnly == 1)
+			return 0;
+		if (*oc == OP_SeekGT) {
+			mem_set_u64(mem, 0);
+			*oc = OP_SeekGE;
+			return 0;
+		}
+		if (*oc == OP_SeekGE) {
+			mem_set_u64(mem, 0);
+			return 0;
+		}
+		if (*oc == OP_SeekLT)
+			return 0;
+		assert(*oc == OP_SeekLE);
+		return 0;
+	}
+	assert((mem->flags & MEM_Real) != 0);
+	double d = mem->u.r;
+	if (d == (double)(uint64_t)d)
+		return mem_convert_to_unsigned(mem, true);
+	if (eqOnly == 1)
+		return 0;
+	if (*oc == OP_SeekGT) {
+		if (d >= (double)UINT64_MAX)
+			return 0;
+		if (d < 0) {
+			mem_set_u64(mem, 0);
+			*oc = OP_SeekGE;
+			return 0;
+		}
+		assert((double)(uint64_t)d < d);
+		return mem_convert_to_unsigned(mem, true);
+	}
+	if (*oc == OP_SeekGE) {
+		if (d >= (double)UINT64_MAX)
+			return 0;
+		if (d < 0) {
+			mem_set_u64(mem, 0);
+			return 0;
+		}
+		assert((double)(uint64_t)d < d);
+		*oc = OP_SeekGT;
+		return mem_convert_to_unsigned(mem, true);
+	}
+	if (*oc == OP_SeekLT) {
+		if (d >= (double)UINT64_MAX) {
+			*oc = OP_SeekLE;
+			mem_set_u64(mem, UINT64_MAX);
+			return 0;
+		}
+		if (d < 0)
+			return 0;
+		assert((double)(uint64_t)d < d);
+		*oc = OP_SeekLE;
+		return mem_convert_to_unsigned(mem, true);
+	}
+	assert(*oc == OP_SeekLE);
+	if (d >= (double)UINT64_MAX) {
+		mem_set_u64(mem, UINT64_MAX);
+		return 0;
+	}
+	if (d < 0)
+		return 0;
+	assert((double)(uint64_t)d < d);
+	return mem_convert_to_unsigned(mem, true);
+}
+
+static int
+mem_prepare_to_int(struct Mem *mem, int *oc, int eqOnly)
+{
+	assert((mem->flags & MEM_Real) != 0);
+	double d = mem->u.r;
+	if (d == (double)(uint64_t)d || d == (double)(int64_t)d)
+		return mem_convert_to_integer(mem, true);
+	if (eqOnly == 1)
+		return 0;
+	if (*oc == OP_SeekGT) {
+		if (d >= (double)UINT64_MAX)
+			return 0;
+		if (d < (double)INT64_MIN) {
+			mem_set_i64(mem, INT64_MIN);
+			*oc = OP_SeekGE;
+			return 0;
+		}
+		if (d > 0 || (double)(int64_t)d < d)
+			return mem_convert_to_integer(mem, true);
+		*oc = OP_SeekGE;
+		return mem_convert_to_integer(mem, true);
+	}
+	if (*oc == OP_SeekGE) {
+		if (d >= (double)UINT64_MAX)
+			return 0;
+		if (d < (double)INT64_MIN) {
+			mem_set_i64(mem, INT64_MIN);
+			return 0;
+		}
+		if (d > 0 || (double)(int64_t)d < d) {
+			*oc = OP_SeekGT;
+			return mem_convert_to_integer(mem, true);
+		}
+		return mem_convert_to_integer(mem, true);
+	}
+	if (*oc == OP_SeekLT) {
+		if (d >= (double)UINT64_MAX) {
+			*oc = OP_SeekLE;
+			mem_set_int(mem, UINT64_MAX, false);
+			return 0;
+		}
+		if (d < (double)INT64_MIN)
+			return 0;
+		if (d > 0 || (double)(int64_t)d < d) {
+			*oc = OP_SeekLE;
+			return mem_convert_to_integer(mem, true);
+		}
+		return mem_convert_to_integer(mem, true);
+	}
+	assert(*oc == OP_SeekLE);
+	if (d >= (double)UINT64_MAX) {
+		mem_set_int(mem, UINT64_MAX, false);
+		return 0;
+	}
+	if (d > 0 || (double)(int64_t)d < d)
+		return mem_convert_to_integer(mem, true);
+	*oc = OP_SeekLT;
+	return mem_convert_to_integer(mem, true);
+}
+
+static int
+mem_prepare_to_double(struct Mem *mem, int *oc, int eqOnly)
+{
+	if ((mem->flags & MEM_Int) != 0) {
+		int64_t i = mem->u.i;
+		if (i == (int64_t)(double)i)
+			return mem_convert_to_double(mem, true);
+		if (eqOnly == 1)
+			return 0;
+		double d = (double)i;
+		if (*oc == OP_SeekGT) {
+			if (d == (double)INT64_MAX || i < (int64_t)d)
+				*oc = OP_SeekGE;
+			return mem_convert_to_double(mem, true);
+		}
+		if (*oc == OP_SeekGE) {
+			if (d != (double)INT64_MAX && i > (int64_t)d)
+				*oc = OP_SeekGT;
+			return mem_convert_to_double(mem, true);
+		}
+		if (*oc == OP_SeekLT) {
+			if (d != (double)INT64_MAX && i > (int64_t)d)
+				*oc = OP_SeekLE;
+			return mem_convert_to_double(mem, true);
+		}
+		assert(*oc == OP_SeekLE);
+		if (d == (double)INT64_MAX || i < (int64_t)d)
+			*oc = OP_SeekLT;
+		return mem_convert_to_double(mem, true);
+	}
+	assert((mem->flags & MEM_UInt) != 0);
+	uint64_t u = mem->u.u;
+	if (u == (uint64_t)(double)u)
+		return mem_convert_to_double(mem, true);
+	if (eqOnly == 1)
+		return 0;
+	double d = (double)u;
+	if (*oc == OP_SeekGT) {
+		if (d == (double)UINT64_MAX || u < (uint64_t)d)
+			*oc = OP_SeekGE;
+		return mem_convert_to_double(mem, true);
+	}
+	if (*oc == OP_SeekGE) {
+		if (d != (double)UINT64_MAX && u > (uint64_t)d)
+			*oc = OP_SeekGT;
+		return mem_convert_to_double(mem, true);
+	}
+	if (*oc == OP_SeekLT) {
+		if (d != (double)UINT64_MAX && u > (uint64_t)d)
+			*oc = OP_SeekLE;
+		return mem_convert_to_double(mem, true);
+	}
+	assert(*oc == OP_SeekLE);
+	if (d == (double)UINT64_MAX || u < (uint64_t)d)
+		*oc = OP_SeekLT;
+	return mem_convert_to_double(mem, true);
+}
+
+static int
+mem_prepare_for_cmp(struct Mem *mem, enum field_type type, int *oc, int eqOnly)
+{
+	if (type == FIELD_TYPE_UNSIGNED)
+		return mem_prepare_to_uint(mem, oc, eqOnly);
+	if (type == FIELD_TYPE_INTEGER)
+		return mem_prepare_to_int(mem, oc, eqOnly);
+	assert(type == FIELD_TYPE_DOUBLE);
+	return mem_prepare_to_double(mem, oc, eqOnly);
+}
+
 /*
  * pMem currently only holds a string type (or maybe a BLOB that we can
  * interpret as a string if we want to).  Compute its corresponding
@@ -3549,17 +3749,30 @@ case OP_SeekGT: {       /* jump, in3 */
 	r.aMem = &aMem[pOp->p3];
 	if (check_mems_comparability(r.aMem, r.key_def, r.nField) != 0)
 		goto abort_due_to_error;
-	/*
-	 * We know that mems and tuples are comparable, but BOX
-	 * can actually only compare them if they are compatible
-	 * according to field_mp_plain_type_is_compatible(). If
-	 * they are not compatible, we can say that nothing will
-	 * be found found when EQ iterator is used.
-	 */
-	if (eqOnly == 1) {
-		for (uint32_t i = 0; i < r.nField; ++i) {
-			enum field_type type = r.key_def->parts[i].type;
-			struct Mem *mem = &r.aMem[i];
+	struct region *region = &fiber()->gc;
+	size_t region_svp = region_used(region);
+	uint32_t size = sizeof(struct Mem) * r.nField;
+	r.aMem = region_alloc(region, size);
+	memcpy(r.aMem, &aMem[pOp->p3], size);
+	for (int i = 0; i < r.nField; ++i) {
+		struct Mem *mem = &r.aMem[i];
+		enum field_type type = r.key_def->parts[i].type;
+		/*
+		 * We already know that MEM_type and field type
+		 * are comparable since we used ApplyType.
+		 */
+		if (!mem_is_type_compatible(mem, type)) {
+			if (mem_prepare_for_cmp(mem, type, &oc, eqOnly) != 0) {
+				diag_set(ClientError, ER_SQL_TYPE_MISMATCH,
+					 sql_value_to_diag_str(mem),
+					 field_type_strs[type]);
+				goto abort_due_to_error;
+			}
+			/*
+			 * If MEM type and field type still
+			 * incompatible, then we won't find
+			 * anything.
+			 */
 			if (!mem_is_type_compatible(mem, type)) {
 				res = 1;
 				goto seek_not_found;
@@ -3571,7 +3784,9 @@ case OP_SeekGT: {       /* jump, in3 */
 #endif
 	r.eqSeen = 0;
 	r.opcode = oc;
-	if (sqlCursorMovetoUnpacked(pC->uc.pCursor, &r, &res) != 0)
+	rc = sqlCursorMovetoUnpacked(pC->uc.pCursor, &r, &res);
+	region_truncate(region, region_svp);
+	if (rc != 0)
 		goto abort_due_to_error;
 	if (eqOnly && r.eqSeen==0) {
 		assert(res!=0);

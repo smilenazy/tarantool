@@ -372,3 +372,124 @@ box.snapshot()
 s:select()
 
 s:drop()
+
+-- gh-5107: don't squash upsert operations into one array.
+--
+-- Test upsert execution/squash referring to fields in reversed
+-- order (via negative indexing).
+--
+s = box.schema.create_space('test', {engine = 'vinyl'})
+pk = s:create_index('pk')
+s:insert({1, 1, 1})
+box.snapshot()
+
+s:upsert({1}, {{'=', 3, 100}})
+s:upsert({1}, {{'=', -1, 200}})
+box.snapshot()
+s:select() -- {1, 1, 200}
+
+s:delete({1})
+s:insert({1, 1, 1})
+box.snapshot()
+
+s:upsert({1}, {{'=', -3, 100}})
+s:upsert({1}, {{'=', -1, 200}})
+box.snapshot()
+-- Two upserts are NOT squashed into one, so only one
+-- (first one) is skipped, meanwhile second one is applied.
+--
+s:select() -- {1, 1, 1}
+
+s:delete({1})
+box.snapshot()
+
+s:upsert({1, 1}, {{'=', -2, 300}}) -- {1, 1}
+s:upsert({1}, {{'+', -1, 100}}) -- {1, 101}
+s:upsert({1}, {{'-', 2, 100}}) -- {1, 1}
+s:upsert({1}, {{'+', -1, 200}}) -- {1, 201}
+s:upsert({1}, {{'-', 2, 200}}) -- {1, 1}
+box.snapshot()
+s:select() -- {1, 1}
+
+s:delete({1})
+box.snapshot()
+
+s:upsert({1, 1, 1}, {{'!', -1, 300}}) -- {1, 1, 1}
+s:upsert({1}, {{'+', -2, 100}}) -- {1, 101, 1}
+s:upsert({1}, {{'=', -1, 100}}) -- {1, 101, 100}
+s:upsert({1}, {{'+', -1, 200}}) -- {1, 101, 300}
+s:upsert({1}, {{'-', -2, 100}}) -- {1, 1, 300}
+box.snapshot()
+s:select()
+
+s:drop()
+
+-- Upsert operations which break space format are not applied.
+--
+s = box.schema.space.create('test', { engine = 'vinyl', field_count = 2 })
+pk = s:create_index('pk')
+s:replace{1, 1}
+-- Error is logged, upsert is not applied.
+--
+s:upsert({1, 1}, {{'=', 3, 5}})
+-- During read the incorrect upsert is ignored.
+--
+s:select{}
+
+-- Try to set incorrect field_count in a transaction.
+--
+box.begin()
+s:replace{2, 2}
+s:upsert({2, 2}, {{'=', 3, 2}})
+s:select{}
+box.commit()
+s:select{}
+
+-- Read incorrect upsert from a run: it should be ignored.
+--
+box.snapshot()
+s:select{}
+s:upsert({2, 2}, {{'=', 3, 20}})
+box.snapshot()
+s:select{}
+
+-- Execute replace/delete after invalid upsert.
+--
+box.snapshot()
+s:upsert({2, 2}, {{'=', 3, 30}})
+s:replace{2, 3}
+s:select{}
+
+s:upsert({1, 1}, {{'=', 3, 30}})
+s:delete{1}
+s:select{}
+
+-- Invalid upsert in a sequence of upserts is skipped meanwhile
+-- the rest are applied.
+--
+box.snapshot()
+s:upsert({2, 2}, {{'+', 2, 5}})
+s:upsert({2, 2}, {{'=', 3, 40}})
+s:upsert({2, 2}, {{'+', 2, 5}})
+s:select{}
+box.snapshot()
+s:select{}
+
+s:drop()
+
+-- Make sure upserts satisfy associativity rule.
+--
+s = box.schema.space.create('test', {engine='vinyl'})
+i = s:create_index('pk', {parts={2, 'uint'}})
+s:replace{1, 2, 3, 'default'}
+box.snapshot()
+
+s:upsert({2, 2, 2}, {{'=', 4, 'upserted'}})
+-- Upsert will fail and thus ignored.
+--
+s:upsert({2, 2, 2}, {{'#', 1, 1}, {'!', 3, 1}})
+box.snapshot()
+
+s:select{}
+
+s:drop()

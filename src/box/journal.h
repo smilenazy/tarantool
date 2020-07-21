@@ -40,7 +40,6 @@ extern "C" {
 #endif /* defined(__cplusplus) */
 
 struct xrow_header;
-struct journal_entry;
 
 /**
  * An entry for an abstract journal.

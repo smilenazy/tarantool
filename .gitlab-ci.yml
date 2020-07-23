@@ -12,6 +12,7 @@ variables:
   GITLAB_MAKE: "make -f .gitlab.mk"
   GIT_STRATEGY: none
   GIT_CLEAN_FLAGS: none
+  OSX_VARDIR: /tmp/tnt
 
 # 1. Git checkout strategy used from:
 #    https://docs.gitlab.com/ee/ci/yaml/README.html#git-checkout
@@ -34,6 +35,13 @@ before_script:
   - /bin/bash -c "git clean -ffdx && git submodule foreach git clean -ffdx && git submodule foreach git status"
 
 # Jobs templates
+
+.artifacts_reject_files_template: &artifacts_reject_files_definition
+  artifacts:
+    when: always
+    paths:
+      - "test/*/*.reject"
+      - "test/var/artifacts/*"
 
 .deploy_only_template: &deploy_only_definition
   only:
@@ -62,12 +70,14 @@ before_script:
   stage: test
   tags:
     - docker_test
+  <<: *artifacts_reject_files_definition
 
 .docker_test_clang8_template: &docker_test_clang8_definition
   image: "${CI_REGISTRY}/${CI_PROJECT_PATH}/testing/debian-buster:latest"
   stage: test
   tags:
     - docker_test
+  <<: *artifacts_reject_files_definition
 
 .pack_template: &pack_definition
   <<: *pack_only_definition
@@ -84,6 +94,7 @@ before_script:
     - deploy_test
   script:
     - ${GITLAB_MAKE} package
+  <<: *artifacts_reject_files_definition
 
 .deploy_template: &deploy_definition
   <<: *deploy_only_definition
@@ -100,16 +111,23 @@ before_script:
     - deploy_test
   script:
     - ${GITLAB_MAKE} deploy
+  <<: *artifacts_reject_files_definition
 
 .osx_template: &osx_definition
   stage: test
   script:
     - ${GITLAB_MAKE} test_osx
+  variables:
+    VARDIR: ${OSX_VARDIR}
+  after_script:
+    - rm -rf test/var ; mkdir test/var && cp -rf ${OSX_VARDIR}/artifacts test/var/.
+  <<: *artifacts_reject_files_definition
 
 .vbox_template: &vbox_definition
   stage: test
   after_script:
     - ${GITLAB_MAKE} vms_shutdown
+  <<: *artifacts_reject_files_definition
 
 .perf_docker_test_template: &perf_docker_test_definition
   <<: *perf_only_definition
@@ -193,9 +211,10 @@ osx_15_release:
 osx_15_release_lto:
   tags:
     - osx_15
-  variables:
-    CMAKE_EXTRA_PARAMS: -DENABLE_LTO=ON
   <<: *osx_definition
+  variables:
+    VARDIR: ${OSX_VARDIR}
+    CMAKE_EXTRA_PARAMS: -DENABLE_LTO=ON
 
 freebsd_12_release:
   <<: *vbox_definition
@@ -540,3 +559,4 @@ static_docker_build:
     - deploy_test
   script:
     - ${GITLAB_MAKE} test_static_docker_build
+  <<: *artifacts_reject_files_definition

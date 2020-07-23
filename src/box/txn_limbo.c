@@ -32,6 +32,9 @@
 #include "txn_limbo.h"
 #include "replication.h"
 
+#include "iproto_constants.h"
+#include "journal.h"
+
 struct txn_limbo txn_limbo;
 
 static inline void
@@ -237,62 +240,67 @@ complete:
 	return 0;
 }
 
-static int
-txn_limbo_write_confirm_rollback(struct txn_limbo *limbo, int64_t lsn,
-				 bool is_confirm)
+/**
+ * A callback for synchronous write: txn_limbo_write fiber
+ * waiting to proceed once a record is written to WAL.
+ */
+static void
+txn_limbo_write_cb(struct journal_entry *entry)
 {
+	assert(entry->complete_data != NULL);
+	fiber_wakeup(entry->complete_data);
+}
+
+/**
+ * Write CONFIRM or ROLLBACK message to a journal directly
+ * without involving transaction engine because using txn
+ * engine is far from being cheap while we only need to
+ * write a small journal entry.
+ */
+static int
+txn_limbo_write(uint32_t replica_id, int64_t lsn, int type)
+{
+	assert(replica_id != REPLICA_ID_NIL);
+	assert(type == IPROTO_CONFIRM || type == IPROTO_ROLLBACK);
 	assert(lsn > 0);
 
-	struct xrow_header row;
-	struct request request = {
-		.header = &row,
-	};
-
-	struct txn *txn = txn_begin();
-	if (txn == NULL)
-		return -1;
-
-	int res = 0;
-	if (is_confirm) {
-		res = xrow_encode_confirm(&row, &txn->region,
-					  limbo->instance_id, lsn);
-	} else {
-		/*
-		 * This LSN is the first to be rolled back, so
-		 * the last "safe" lsn is lsn - 1.
-		 */
-		res = xrow_encode_rollback(&row, &txn->region,
-					   limbo->instance_id, lsn);
-	}
-	if (res == -1)
-		goto rollback;
 	/*
-	 * This is not really a transaction. It just uses txn API
-	 * to put the data into WAL. And obviously it should not
-	 * go to the limbo and block on the very same sync
-	 * transaction which it tries to confirm now.
+	 * When allocated statically some compilers (such as
+	 * clang + asan) requires the journal_entry::rows to
+	 * be last in a container structure. So it it simplier
+	 * just to create a cummulative buffer.
 	 */
-	txn_set_flag(txn, TXN_FORCE_ASYNC);
+	char buf[sizeof(struct journal_entry) +
+		 sizeof(struct xrow_header *)];
 
-	if (txn_begin_stmt(txn, NULL) != 0)
-		goto rollback;
-	if (txn_commit_stmt(txn, &request) != 0)
-		goto rollback;
+	struct synchro_body_bin body_bin;
+	struct xrow_header row;
 
-	return txn_commit(txn);
-rollback:
-	txn_rollback(txn);
-	return -1;
+	struct journal_entry *entry = (struct journal_entry *)buf;
+	entry->rows[0] = &row;
+
+	xrow_encode_synchro(&row, &body_bin, replica_id, lsn, type);
+
+	journal_entry_create(entry, 1, xrow_approx_len(&row),
+			     txn_limbo_write_cb, fiber());
+
+	if (journal_write(entry) != 0 || entry->res < 0) {
+		diag_set(ClientError, ER_WAL_IO);
+		diag_log();
+		return -1;
+	}
+
+	return 0;
 }
 
 /**
  * Write a confirmation entry to WAL. After it's written all the
  * transactions waiting for confirmation may be finished.
  */
-static int
+static inline int
 txn_limbo_write_confirm(struct txn_limbo *limbo, int64_t lsn)
 {
-	return txn_limbo_write_confirm_rollback(limbo, lsn, true);
+	return txn_limbo_write(limbo->instance_id, lsn, IPROTO_CONFIRM);
 }
 
 void
@@ -338,10 +346,10 @@ txn_limbo_read_confirm(struct txn_limbo *limbo, int64_t lsn)
  * transactions following the current one and waiting for
  * confirmation must be rolled back.
  */
-static int
+static inline int
 txn_limbo_write_rollback(struct txn_limbo *limbo, int64_t lsn)
 {
-	return txn_limbo_write_confirm_rollback(limbo, lsn, false);
+	return txn_limbo_write(limbo->instance_id, lsn, IPROTO_ROLLBACK);
 }
 
 void

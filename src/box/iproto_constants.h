@@ -328,6 +328,33 @@ iproto_type_is_synchro_request(uint32_t type)
 	return type == IPROTO_CONFIRM || type == IPROTO_ROLLBACK;
 }
 
+/** CONFIRM/ROLLBACK entries encoded in MsgPack. */
+struct PACKED request_synchro_body {
+	uint8_t m_body;
+	uint8_t k_replica_id;
+	uint8_t m_replica_id;
+	uint32_t v_replica_id;
+	uint8_t k_lsn;
+	uint8_t m_lsn;
+	uint64_t v_lsn;
+};
+
+/**
+ * Creates CONFIRM/ROLLBACK entry.
+ */
+static inline void
+request_synchro_body_create(struct request_synchro_body *body,
+			    uint32_t replica_id, int64_t lsn)
+{
+	body->m_body = 0x80 | 2;
+	body->k_replica_id = IPROTO_REPLICA_ID;
+	body->m_replica_id = 0xce;
+	body->v_replica_id = mp_bswap_u32(replica_id);
+	body->k_lsn = IPROTO_LSN;
+	body->m_lsn = 0xcf;
+	body->v_lsn = mp_bswap_u64(lsn);
+}
+
 /** This is an error. */
 static inline bool
 iproto_type_is_error(uint32_t type)

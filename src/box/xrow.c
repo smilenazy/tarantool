@@ -897,26 +897,19 @@ static int
 xrow_encode_confirm_rollback(struct xrow_header *row, struct region *region,
 			     uint32_t replica_id, int64_t lsn, int type)
 {
-	size_t len = mp_sizeof_map(2) + mp_sizeof_uint(IPROTO_REPLICA_ID) +
-		     mp_sizeof_uint(replica_id) + mp_sizeof_uint(IPROTO_LSN) +
-		     mp_sizeof_uint(lsn);
-	char *buf = (char *)region_alloc(region, len);
-	if (buf == NULL) {
-		diag_set(OutOfMemory, len, "region_alloc", "buf");
+	struct request_synchro_body *body;
+
+	body = region_alloc(region, sizeof(*body));
+	if (body == NULL) {
+		diag_set(OutOfMemory, sizeof(*body), "region_alloc", "body");
 		return -1;
 	}
-	char *pos = buf;
-
-	pos = mp_encode_map(pos, 2);
-	pos = mp_encode_uint(pos, IPROTO_REPLICA_ID);
-	pos = mp_encode_uint(pos, replica_id);
-	pos = mp_encode_uint(pos, IPROTO_LSN);
-	pos = mp_encode_uint(pos, lsn);
+	request_synchro_body_create(body, replica_id, lsn);
 
 	memset(row, 0, sizeof(*row));
 
-	row->body[0].iov_base = buf;
-	row->body[0].iov_len = len;
+	row->body[0].iov_base = (void *)body;
+	row->body[0].iov_len = sizeof(*body);
 	row->bodycnt = 1;
 
 	row->type = type;

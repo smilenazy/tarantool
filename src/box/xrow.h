@@ -54,6 +54,7 @@ enum {
 	IPROTO_SELECT_HEADER_LEN = IPROTO_HEADER_LEN + 7,
 };
 
+struct request_synchro_body;
 struct region;
 
 struct xrow_header {
@@ -214,6 +215,20 @@ xrow_decode_dml(struct xrow_header *xrow, struct request *request,
 int
 xrow_encode_dml(const struct request *request, struct region *region,
 		struct iovec *iov);
+
+
+/**
+ * Encode the CONFIRM or ROLLBACK to row body and set row type.
+ * @param row xrow header.
+ * @param body body to encode.
+ * @param replica_id master's instance id.
+ * @param lsn last confirmed lsn.
+ * @param type IPROTO_CONFIRM or IPROTO_ROLLBACK.
+ */
+int
+xrow_encode_confirm_rollback(struct xrow_header *row,
+			     struct request_synchro_body *body,
+			     uint32_t replica_id, int64_t lsn, int type);
 
 /**
  * Encode the CONFIRM to row body and set row type to

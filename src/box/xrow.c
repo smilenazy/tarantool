@@ -893,17 +893,11 @@ xrow_encode_dml(const struct request *request, struct region *region,
 	return iovcnt;
 }
 
-static int
-xrow_encode_confirm_rollback(struct xrow_header *row, struct region *region,
+int
+xrow_encode_confirm_rollback(struct xrow_header *row,
+			     struct request_synchro_body *body,
 			     uint32_t replica_id, int64_t lsn, int type)
 {
-	struct request_synchro_body *body;
-
-	body = region_alloc(region, sizeof(*body));
-	if (body == NULL) {
-		diag_set(OutOfMemory, sizeof(*body), "region_alloc", "body");
-		return -1;
-	}
 	request_synchro_body_create(body, replica_id, lsn);
 
 	memset(row, 0, sizeof(*row));
@@ -921,7 +915,15 @@ int
 xrow_encode_confirm(struct xrow_header *row, struct region *region,
 		    uint32_t replica_id, int64_t lsn)
 {
-	return xrow_encode_confirm_rollback(row, region, replica_id, lsn,
+	struct request_synchro_body *body;
+
+	body = region_alloc(region, sizeof(*body));
+	if (body == NULL) {
+		diag_set(OutOfMemory, sizeof(*body), "region_alloc", "body");
+		return -1;
+	}
+
+	return xrow_encode_confirm_rollback(row, body, replica_id, lsn,
 					    IPROTO_CONFIRM);
 }
 
@@ -929,7 +931,15 @@ int
 xrow_encode_rollback(struct xrow_header *row, struct region *region,
 		     uint32_t replica_id, int64_t lsn)
 {
-	return xrow_encode_confirm_rollback(row, region, replica_id, lsn,
+	struct request_synchro_body *body;
+
+	body = region_alloc(region, sizeof(*body));
+	if (body == NULL) {
+		diag_set(OutOfMemory, sizeof(*body), "region_alloc", "body");
+		return -1;
+	}
+
+	return xrow_encode_confirm_rollback(row, body, replica_id, lsn,
 					    IPROTO_ROLLBACK);
 }
 

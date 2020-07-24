@@ -68,6 +68,12 @@ struct func_opts {
 	 * packed in array.
 	 */
 	bool is_multikey;
+	/**
+	 * TRUE if the function can have a variable number of arguments.
+	 *
+	 * Currently only used in built-in SQL functions.
+	 */
+	bool has_vararg;
 };
 
 extern const struct func_opts func_opts_default;

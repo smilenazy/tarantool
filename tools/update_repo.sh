@@ -869,6 +869,13 @@ function remove_rpm {
         done
     done
 
+    # remove all found file by the given pattern in options
+    for suffix in 'x86_64' 'noarch' 'src'; do
+        file="$bucket_path/$packpath/${remove}-1.${os}${option_dist}.${suffix}.rpm"
+        $aws ls $file || continue
+        $aws rm $file
+    done
+
     # check if any RPM files were newly registered
     [ "$updated_rpms" == "0" ] && \
         return || echo "Updating dists"

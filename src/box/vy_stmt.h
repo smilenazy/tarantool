@@ -300,6 +300,12 @@ vy_stmt_is_empty_key(struct tuple *stmt)
 	return tuple_field_count(stmt) == 0;
 }
 
+static inline bool
+vy_stmt_is_void(struct tuple *stmt)
+{
+	return stmt == NULL || vy_stmt_type(stmt) == IPROTO_DELETE;
+}
+
 /**
  * Duplicate the statememnt.
  *

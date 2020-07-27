@@ -21,9 +21,20 @@ The machinery under the hood oblige all instances to follow a new process of tra
 
 I expect to elaborate similar approach to the Raft-based failover machinery. Which means one can use the qsync replication without the Raft enabled, being able to elaborate its own failover mechanism. Although, if Raft is enabled then all instances in the cluster are obliged to follow the rules implied by the Raft, such as ignore log entries from a leader with stale term number.
 
+### Leader Election
+
+I expect the leader election algorithm can be reused from the Raft implementation of 
+
 ### Log Replication
 
 The qsync RFC explains how we enforce the log replication in a way it is described in clause 5.3 of the [1]: committed entry always has a commit message in the xlog. Key difference here is that log entry index comprises of two parts: the LSN and the served ID. The follower's log consistency will be achieved during a) leader election, when follower will only fote for a candidate who has VCLOCK components greater or equal to follower's and b) during the join to a new leader, when follower will have an option to drop it's waiting queue (named limbo in qsync implementation), either perform a full rejoin. The latter is painful, still is the only way to follow the current representation of xlog that contains no replay info.
+
+There is a requirement in 5.1 of [1]: 
+
+> If a server receives a request with a stale term number, it rejects the request. 
+
+that requires to introduce a machinery that will inspect every DML message from IPROTO to check if it satisfies the requirement. To introduce this machinery there should be an additional info put into the replicated DML: a term of the leader. This info should be introduced - and checked - only in case the cluster is configured to use the Raft machinery. The term should be reused from the library of Raft we will use. 
+
 
 ## Rationale and alternatives
 

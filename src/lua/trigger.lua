@@ -1,4 +1,5 @@
 local fun = require('fun')
+local _ = require('table.clear')
 
 --
 -- Checks that argument is a callable, i.e. a function or a table

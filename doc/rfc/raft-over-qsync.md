@@ -23,7 +23,8 @@ I expect to elaborate similar approach to the Raft-based failover machinery. Whi
 
 ### Leader Election
 
-I expect the leader election algorithm can be reused from the Raft implementation of 
+I expect the leader election algorithm can be reused from the Raft implementation [2] with additional mapping to the Tarantool replication mechanism. 
+
 
 ### Log Replication
 
@@ -35,9 +36,12 @@ There is a requirement in 5.1 of [1]:
 
 that requires to introduce a machinery that will inspect every DML message from IPROTO to check if it satisfies the requirement. To introduce this machinery there should be an additional info put into the replicated DML: a term of the leader. This info should be introduced - and checked - only in case the cluster is configured to use the Raft machinery. The term should be reused from the library of Raft we will use. 
 
+As a result an instance that is joining a cluster with the Raft protocol enabled has to enable the protocol either, otherwise it should be disconnected. 
+
 
 ## Rationale and alternatives
 
 ## References
 
 [1] https://raft.github.io/raft.pdf
+[2] https://github.com/willemt/raft

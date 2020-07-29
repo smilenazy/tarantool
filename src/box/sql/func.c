@@ -544,6 +544,19 @@ absFunc(sql_context * context, int argc, sql_value ** argv)
 	}
 }
 
+static void
+func_abs_integer(sql_context * context, int argc, sql_value ** argv)
+{
+	assert(argc == 1);
+	UNUSED_PARAMETER(argc);
+	enum mp_type type = sql_value_type(argv[0]);
+	assert(type == MP_INT || type == MP_UINT);
+	if (type == MP_UINT)
+		sql_result_uint(context, sql_value_uint64(argv[0]));
+	else
+		sql_result_uint(context, -sql_value_int64(argv[0]));
+}
+
 /**
  * Implementation of the position() function.
  *
@@ -2190,6 +2203,29 @@ sql_func_by_signature(const char *name, int argc)
 
 	if (base->def->param_count != -1 && base->def->param_count != argc)
 		return NULL;
+	return base;
+}
+
+struct func *
+sql_func_by_signature_2(const char *name, enum field_type type, int argc)
+{
+	struct func *base = func_by_name(name, strlen(name));
+	if (base == NULL || !base->def->exports.sql)
+		return NULL;
+
+	if (base->def->param_count != -1 && base->def->param_count != argc)
+		return NULL;
+
+	if (strcmp(name, "ABS") == 0) {
+		struct func_sql_builtin *func = (struct func_sql_builtin *)base;
+		if (type == FIELD_TYPE_INTEGER) {
+			func->call = func_abs_integer;
+			base->def->returns = FIELD_TYPE_INTEGER;
+		} else {
+			func->call = absFunc;
+			base->def->returns = FIELD_TYPE_NUMBER;
+		}
+	}
 	return base;
 }
 

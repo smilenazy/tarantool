@@ -4449,6 +4449,9 @@ sql_func_flag_is_set(struct func *func, uint16_t flag)
 struct func *
 sql_func_by_signature(const char *name, int argc);
 
+struct func *
+sql_func_by_signature_2(const char *name, enum field_type type, int argc);
+
 /**
  * Generate VDBE code to halt execution with correct error if
  * the object with specified key is already present (or doesn't

@@ -3976,7 +3976,11 @@ sqlExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			nFarg = pFarg ? pFarg->nExpr : 0;
 			assert(!ExprHasProperty(pExpr, EP_IntValue));
 			zId = pExpr->u.zToken;
-			struct func *func = sql_func_by_signature(zId, nFarg);
+			enum field_type arg_type = FIELD_TYPE_ANY;
+			if (nFarg > 0)
+				arg_type = sql_expr_type(pFarg->a[0].pExpr);
+			struct func *func =
+				sql_func_by_signature_2(zId, arg_type, nFarg);
 			if (func == NULL) {
 				diag_set(ClientError, ER_NO_SUCH_FUNCTION,
 					 zId);

@@ -598,7 +598,11 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 			assert(!ExprHasProperty(pExpr, EP_xIsSelect));
 			zId = pExpr->u.zToken;
 			nId = sqlStrlen30(zId);
-			struct func *func = func_by_name(zId, nId);
+			enum field_type arg_type = FIELD_TYPE_ANY;
+			if (n > 0)
+				arg_type = sql_expr_type(pList->a[0].pExpr);
+			struct func *func =
+				sql_func_by_signature_2(zId, arg_type, n);
 			if (func == NULL) {
 				diag_set(ClientError, ER_NO_SUCH_FUNCTION, zId);
 				pParse->is_aborted = true;
